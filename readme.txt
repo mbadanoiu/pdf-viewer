@@ -36,5 +36,8 @@ In simple words, YES. But if you are using domain mapping plugin, this only work
 == Changelog ==
 = 0.1 =
 * Initial release.
+= 0.2 =
+* Simplistic pdf validation by checking file extension.
+* HTTP/HTTPS Protocol compatible. Dynamically switches protocol over which the pdf resource is aquired.
 
 == Upgrade Notice ==

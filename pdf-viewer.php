@@ -3,7 +3,7 @@
 Plugin Name: PDF Viewer
 Plugin URI: http://wordpress.org/plugins/pdf-viewer/
 Description: HTML5-compliant PDF Viewer
-Version: 0.1
+Version: 0.2
 Author: Envigeek Web Services
 Author URI: http://www.envigeek.com/
 
@@ -27,7 +27,7 @@ add_action( 'plugins_loaded', array( 'PDFviewer', 'init' ) );
  
 class PDFviewer
 {
-	const VER = '0.1';
+	const VER = '0.2';
 
 	protected $options;
 	
@@ -265,7 +265,7 @@ class PDFviewer
 		$width = $this->options['tx_width'];
 		$height = $this->options['tx_height'];
 		
-		echo '<p>Use <code>[pdfviewer width="'.$width.'" height="'.$height.'" beta="true/false"]http://full-url/document.pdf[/pdfviewer]</code> in post editor to embed the PDF Viewer.</p>';
+		echo '<p>Use <code>[pdfviewer width="'.$width.'" height="'.$height.'" beta="true/false"]protocol://full-url/document.pdf[/pdfviewer]</code> in post editor to embed the PDF Viewer.</p>';
     }
 	
 	/** 
@@ -346,37 +346,60 @@ class PDFviewer
 	 * Add [pdfviewer] shortcode
 	 */
 	public function add_shortcode( $atts, $content = "" ) {
-		if ( !empty($content) && filter_var($content, FILTER_VALIDATE_URL) ) {
+		if ( !empty($content) ) {
+			$content = $this->protocol_relative( $content );
+			if ( filter_var($content, FILTER_VALIDATE_URL) ) {
 
-			//TODO: filter URL to check if PDF only
+				//TODO: filter URL to check if PDF only
+				//could use info in comment "The way HOWTO get MIME-type of remote file.": https://secure.php.net/manual/en/function.finfo-file.php
+
+				if ( !$this->is_pdf($content) ) { //simplistic fix
+					return 'Invalid file. Must have .pdf extension';
+				}
+
+				if ( $this->older_ie($this->options['olderIE']) ) {
 			
-			if ( $this->older_ie($this->options['olderIE']) ) {
+					$notice = str_replace('%%PDF_URL%%', $content, $this->options['ta_notice']);
+					echo html_entity_decode($notice);
 				
-				$notice = str_replace('%%PDF_URL%%', $content, $this->options['ta_notice']);
-				echo html_entity_decode($notice);
+				} else {
 				
+					$atts = shortcode_atts(
+						array(
+							'width' => $this->options['tx_width'],
+							'height' => $this->options['tx_height'],
+							'beta' => empty($this->options['beta']) ? 0 : "true",
+						), 
+						$atts,
+						'pdfviewer' 
+					);
+				
+					$pdfjs_mode = ( $atts['beta'] === "true" ) ? 'beta' : 'stable';
+					$pdfjs_url = plugin_dir_url( __FILE__ ).$pdfjs_mode.'/web/viewer.html?file='.$content;
+				
+					$pdfjs_iframe = '<iframe class="pdfjs-viewer" width="'.$atts['width'].'" height="'.$atts['height'].'" src="'.$pdfjs_url.'"></iframe> ';
+				
+					return $pdfjs_iframe;
+				}
 			} else {
-				
-				$atts = shortcode_atts(
-					array(
-						'width' => $this->options['tx_width'],
-						'height' => $this->options['tx_height'],
-						'beta' => empty($this->options['beta']) ? 0 : "true",
-					), 
-					$atts,
-					'pdfviewer' 
-				);
-				
-				$pdfjs_mode = ( $atts['beta'] === "true" ) ? 'beta' : 'stable';
-				$pdfjs_url = plugin_dir_url( __FILE__ ).$pdfjs_mode.'/web/viewer.html?file='.$content;
-				
-				$pdfjs_iframe = '<iframe class="pdfjs-viewer" width="'.$atts['width'].'" height="'.$atts['height'].'" src="'.$pdfjs_url.'"></iframe> ';
-				
-				return $pdfjs_iframe;
+				return 'Invalid URL for PDF Viewer';
 			}
-		} else {
-			return 'Invalid URL for PDF Viewer';
 		}
+	}
+
+	private function protocol_relative( $content ) {
+		$access_protocol = $_SERVER['SERVER_PROTOCOL'];
+		if ( stristr($access_protocol, 'http') ) {
+			$protocol = $_SERVER['HTTPS'] === 'on' ? 'https:' : 'http:';
+			$position = strpos($content, '//');
+			$content = $protocol . substr($content, $position);
+		}
+		return $content;
+	}
+
+	private function is_pdf( $content ) {
+		$file_parts = pathinfo($content);
+		return $file_parts['extension'] === 'pdf'; //add other supported extensions if relevant
 	}
 }
 ?>
